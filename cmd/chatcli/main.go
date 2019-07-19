@@ -1,39 +1,35 @@
 package main
 
 import (
-	"context"
-	"log"
+	"bufio"
+	"fmt"
+	"net"
 	"os"
-	"time"
-
-	pb "github.com/ding-harrison/SmallSystem/pkg/protobuf"
-	"google.golang.org/grpc"
+	"sync"
 )
 
 const (
-	address     = "localhost:50051"
-	defaultName = "world"
+	PORT            = ":5000"
+	NUM_CONNECTIONS = 100
 )
 
+var wg sync.WaitGroup
+
+func createConnection(i int) {
+	conn, err := net.Dial("tcp4", PORT)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to connect with server")
+	}
+	fmt.Fprintf(conn, "Created connection as %d\n", i)
+	status, err := bufio.NewReader(conn).ReadString('\n')
+	fmt.Fprintf(os.Stdout, "%s", status)
+	wg.Done()
+}
+
 func main() {
-	conn, err := grpc.Dial(address, grpc.WithInsecure())
-	if err != nil {
-		log.Fatalf("did not connect: %v", err)
+	wg.Add(NUM_CONNECTIONS)
+	for i := 0; i < NUM_CONNECTIONS; i++ {
+		go createConnection(i)
 	}
-	defer conn.Close()
-
-	c := pb.NewGreeterClient(conn)
-
-	name := defaultName
-	if len(os.Args) > 1 {
-		name = os.Args[1]
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	r, err := c.SayHello(ctx, &pb.HelloRequest{Name: name})
-	if err != nil {
-		log.Fatalf("Could not greet: %v", err)
-	}
-	log.Printf("Greeting: %s", r.Message)
+	wg.Wait()
 }

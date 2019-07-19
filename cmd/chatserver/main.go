@@ -1,35 +1,47 @@
 package main
 
 import (
-	"context"
-	"log"
+	"bufio"
+	"fmt"
 	"net"
-
-	"google.golang.org/grpc"
-
-	pb "github.com/ding-harrison/SmallSystem/pkg/protobuf"
+	"strings"
 )
-
-type server struct{}
 
 const (
-	port = ":50051"
+	PORT = ":5000"
 )
 
-func (s *server) SayHello(ctx context.Context, r *pb.HelloRequest) (*pb.HelloReply, error) {
-	log.Printf("Received: %v", r.Name)
-	return &pb.HelloReply{Message: "Hello " + r.Name}, nil
+func handleConnection(c net.Conn) {
+	fmt.Printf("Serving %s\n", c.RemoteAddr().String())
+	for {
+		netData, err := bufio.NewReader(c).ReadString('\n')
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		temp := strings.TrimSpace(string(netData))
+		if temp == "STOP" {
+			break
+		}
+		fmt.Println(netData)
+		//c.Write([]byte(string(netData)))
+	}
+	c.Close()
 }
 
 func main() {
-	lis, err := net.Listen("tcp", port)
+	l, err := net.Listen("tcp4", PORT)
 	if err != nil {
-		log.Fatalf("Failed to listen: %v", err)
+		fmt.Println(err)
+		return
 	}
-
-	s := grpc.NewServer()
-	pb.RegisterGreeterServer(s, &server{})
-	if err := s.Serve(lis); err != nil {
-		log.Fatalf("Failed to serve: %v", err)
+	defer l.Close()
+	for {
+		c, err := l.Accept()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		go handleConnection(c)
 	}
 }
